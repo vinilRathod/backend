@@ -9,7 +9,7 @@ const server = http.createServer(app);
 
 const io = require("socket.io")(server, {
     cors: {
-      origin: "http://localhost:3000",
+      origin: "https://vi-chat.netlify.app",
       methods: ["GET", "POST"],
       credentials: true
     }
