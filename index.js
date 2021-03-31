@@ -1,7 +1,8 @@
 const express = require('express');
 const cors = require('cors');
-const { addUser , delUser , getUser , getUsersinRoom} = require('./users')
+const connection = require('./db');
 const PORT = process.env.PORT || 3001;
+const { addUser, delUser, getUser, getUsersInRoom,getUsersInRoombySoc } = require('./users');
 const router = require('./router');
 const http = require('http');
 const app = express();
@@ -9,13 +10,14 @@ const server = http.createServer(app);
 
 const io = require("socket.io")(server, {
     cors: {
-      origin: "https://vi-chat.netlify.app",
-      methods: ["GET", "POST"],
+      origin: "http://localhost:3000",
+      methods: ["GET", "POST","PUT","DELETE"],
       credentials: true
     }
   });
+app.use(express.json());
 app.use(cors());
-app.use(router);
+
 app.use((req,res,next) => {
     res.header('Access-Control-Allow-Origin','*');
     res.header('Access-Control-Allow-Headers',
@@ -29,33 +31,83 @@ app.use((req,res,next) => {
 
     next();
 });
+app.use(router);
+
 io.on('connection',(socket)=>{
     console.log("We have a new user connected !");
     socket.on('join',({name,room},callback)=>{
-        const {error , user } = addUser({id:socket.id,name,room});
-        if(error) 
-        {
+       
+        addUser({id:socket.id,name,room}).then(res=>{
+            global.user1=res;
+            socket.emit('message',{user: 'bot',text:`${global.user1.name} , Welcome to the room ${global.user1.room}`});
+            socket.broadcast.to(global.user1.room).emit('message',{user:'bot',text:`${global.user1.name} has joined !`});
+            socket.join(global.user1.room);
+        }).catch(err=>{
             return callback  && callback(error);
-        }
-        socket.emit('message',{user: 'admin',text:`${user.name} , Welcome to the room ${user.room}`});
-        socket.broadcast.to(user.room).emit('message',{user:'admin',text:`${user.name} has joined !`});
-
-        socket.join(user.room);
-        io.to(user.room).emit('roomData',{room:user.room,users: getUsersinRoom(user.room)})
+        })
+        getUsersInRoom(room).then(result=>{
+                users=result;
+                io.to(room).emit('roomData',{room,users})
+            }).catch(err=>{
+            return callback  && callback(error);
+        })
+        
+           
+            
         if(callback) callback();
     });
     socket.on('sendMessage',(message,callback)=>{
-        const user = getUser(socket.id);
-        io.to(user.room).emit('message',{user:user.name,text:message});
-        io.to(user.room).emit('roomData',{room:user.room,users : getUsersinRoom(user.room)});
+        var user,users;
+        getUser(socket.id).then(res=>{
+            user=res;
+            io.to(user.room).emit('message',{user:user.pname,text:message});
+        }).catch(err=>{
+            console.log(err)
+        })
+        getUsersInRoombySoc(socket.id).then(result=>{
+                room=result[0].room;
+                getUsersInRoom(room).then(results=>{
+                    users=results;
+                    io.to(room).emit('roomData',{room,users})
+                }).catch(err=>{
+                return callback  && callback(error);
+            })
+            }).catch(err =>{
+                console.log(err);
+            })
+        
+       
+       // io.to(user.room).emit('roomData',{room:user.room,users :getUsersInRoom(user.room)});
         callback();
     });
     socket.on('disconnect',()=>{
-        const user = delUser(socket.id);
-        if(user){
-            io.to(user.room).emit('message',{user:'admin',text:`${user.name} left the chat !`})
-        }
-    });
+        var user,users;
+        getUser(socket.id).then(res=>{
+            user=res;
+        }).catch(err=>{
+            console.log(err)
+        })
+        delUser(socket.id).then(res=>{
+            if(user){
+                io.to(user.room).emit('message',{user:'bot',text:`${user.pname} left the chat !`})
+                //io.to(user.room).emit('roomData', { room: user.room, users: getUsersInRoom(user.room)});
+          }
+        }).catch(err =>{
+            console.log(err);
+        })
+        getUsersInRoombySoc(socket.id).then(result=>{
+            room=result[0].room;
+            getUsersInRoom(room).then(results=>{
+                users=results;
+                io.to(room).emit('roomData',{room,users})
+            }).catch(err=>{
+            return callback  && callback(error);
+        })
+        }).catch(err =>{
+            console.log(err);
+        })
+       
+});
 });
 
 
