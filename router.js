@@ -37,7 +37,13 @@ router.post("/enter",(req,res)=>{
                 bcrypt.compare(req.body.password, results[0].roompass, function(err2, result) {
                     if(err2) console.log(err2);
                     if(result){
-                        res.json({entered:true,username:req.body.username});
+                        connection.query("SELECT * FROM people WHERE pname= (?)",[req.body.name],(err3,res3)=>{
+                            if(res3)
+                                res.json({entered:false,msg:"Username not available !"})
+                            else
+                                res.json({entered:true})
+                        })
+                        
                     }else{
                         res.json({entered:false,msg:"Invalid Password/Roomname !"});
                     }
