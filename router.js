@@ -38,7 +38,7 @@ router.post("/enter",(req,res)=>{
                     if(err2) console.log(err2);
                     if(result){
                         connection.query("SELECT * FROM people WHERE pname= (?)",[req.body.name],(err3,res3)=>{
-                            if(res3)
+                            if(res3.length>0)
                                 res.json({entered:false,msg:"Username not available !"})
                             else
                                 res.json({entered:true})
